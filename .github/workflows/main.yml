@@ -32,7 +32,7 @@ jobs:
           echo "Step 1: Downloading the Sample Project"
           git clone ${{ github.event.inputs.sampleRepoLink }}
           echo "Step 2: Download the HyperExecute CLI"
-          cd hyp-autoheal-off
+          cd hyp-autoheal-on
           curl https://downloads.lambdatest.com/hyperexecute/windows/hyperexecute.exe -o hyperexecute.exe
           echo "Step 3: Setting up the Credentials"
           export LT_USERNAME=${{ github.event.inputs.username }}
