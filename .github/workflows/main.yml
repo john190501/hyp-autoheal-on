@@ -1,41 +1,108 @@
-name: HyperExecute-AutoHeal-On
+name: HyperExecute-Autoheal-On
+
 on:
   schedule:
-    - cron: "2 5 * * 1"
+    - cron: "04 7 * * 1"  # Runs at 7:00 AM UTC (12:34 PM IST) every Monday
   workflow_dispatch:
     inputs:
       username:
-        required: true
-        description: LT Username
+        description: "LT Username (Optional)"
+        required: false
       accessKey:
-        description: LT Access Key
-        required: true
+        description: "LT Access Key (Optional)"
+        required: false
       sampleRepoLink:
-        description: Link to the HyperExecute sample repo
-        default: https://github.com/john190501/hyp-autoheal-on
-        required: true
+        description: "Link to the HyperExecute sample repo"
+        default: "https://github.com/john190501/hyp-autoheal-on"
+        required: false
+
 jobs:
-  HyperExecute-Selenium:
-    runs-on: ${{ matrix.os }}
+  HyperExecute-Autoheal-On:
+    runs-on: windows-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest]
+
     steps:
-      - name: Checkout sources
+      - name: Checkout Repository
         uses: actions/checkout@v2
 
-      - name: Execcuting the Project
+      - name: Set Credentials
         shell: bash
         run: |
-          echo "Step 1: Downloading the Sample Project"
-          git clone ${{ github.event.inputs.sampleRepoLink }}
-          echo "Step 2: Download the HyperExecute CLI"
-          cd hyp-autoheal-on
-          curl https://downloads.lambdatest.com/hyperexecute/windows/hyperexecute.exe -o hyperexecute.exe
-          echo "Step 3: Setting up the Credentials"
-          export LT_USERNAME=${{ github.event.inputs.username }}
-          export LT_ACCESS_KEY=${{ github.event.inputs.accessKey }}
-          echo "Step 4: Execute the Test Suite"
+          echo "Setting up credentials..."
+          
+          if [[ -n "${{ github.event.inputs.username }}" ]]; then
+            echo "Using provided credentials from input"
+            echo "LT_USERNAME=${{ github.event.inputs.username }}" >> $GITHUB_ENV
+            echo "LT_ACCESS_KEY=${{ github.event.inputs.accessKey }}" >> $GITHUB_ENV
+          else
+            echo "Using credentials from Secrets"
+            echo "LT_USERNAME=${{ secrets.LT_USERNAME }}" >> $GITHUB_ENV
+            echo "LT_ACCESS_KEY=${{ secrets.LT_ACCESS_KEY }}" >> $GITHUB_ENV
+          fi
+
+      - name: Validate Credentials
+        shell: bash
+        run: |
+          if [[ -z "$LT_USERNAME" || -z "$LT_ACCESS_KEY" ]]; then
+            echo "❌ ERROR: Missing LT_USERNAME or LT_ACCESS_KEY. Exiting..."
+            exit 1
+          else
+            echo "✅ Credentials successfully set."
+          fi
+
+      - name: Set Repository Link
+        shell: bash
+        run: |
+          if [[ -n "${{ github.event.inputs.sampleRepoLink }}" ]]; then
+            echo "Using repository link from manual trigger"
+            echo "REPO_LINK=${{ github.event.inputs.sampleRepoLink }}" >> $GITHUB_ENV
+          else
+            echo "Using default repository link for scheduled runs"
+            echo "REPO_LINK=https://github.com/john190501/hyp-autoheal-on" >> $GITHUB_ENV
+          fi
+
+      - name: Validate Repository Link
+        shell: bash
+        run: |
+          if [[ -z "$REPO_LINK" ]]; then
+            echo "❌ ERROR: Missing repository link. Exiting..."
+            exit 1
+          else
+            echo "✅ Repository link set: $REPO_LINK"
+          fi
+
+      - name: Download Sample Project
+        shell: bash
+        run: |
+          echo "Cloning repository..."
+          git clone "$REPO_LINK"
+          if [[ $? -ne 0 ]]; then
+            echo "❌ ERROR: Failed to clone repository."
+            exit 1
+          fi
+          echo "✅ Repository cloned successfully."
+
+      - name: Install HyperExecute CLI
+        shell: bash
+        run: |
+          echo "Downloading HyperExecute CLI..."
+          curl -O https://downloads.lambdatest.com/hyperexecute/windows/hyperexecute.exe
+          if [[ $? -ne 0 ]]; then
+            echo "❌ ERROR: Failed to download HyperExecute CLI."
+            exit 1
+          fi
+          echo "✅ HyperExecute CLI downloaded successfully."
+
+      - name: Execute Test Suite
+        env:
+          LT_USERNAME: ${{ env.LT_USERNAME }}
+          LT_ACCESS_KEY: ${{ env.LT_ACCESS_KEY }}
+        shell: bash
+        run: |
+          echo "Executing tests on HyperExecute..."
           ./hyperexecute --user $LT_USERNAME --key $LT_ACCESS_KEY --config yaml/hyp-autoheal-on.yaml
+          if [[ $? -ne 0 ]]; then
+            echo "❌ ERROR: Test execution failed."
+            exit 1
+          fi
+          echo "✅ Tests executed successfully."
